@@ -296,7 +296,8 @@ function create_source(buffer, id) {
     sources[id].audio_source = load_buffer(buffer, id);
     if(!sources[id].fileinput){
         add_input('default');
-    }else if(!document.getElementById(id).nextElementSibling){
+    }else if(document.getElementById(id).parentElement.nextElementSibling == null){
+        console.log(document.getElementById(id).parentElement.nextElementSibling);
         add_input();
     }
     if(!sources[id].ball){
