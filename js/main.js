@@ -346,6 +346,14 @@ function init_settings(){
             algorithm = document.querySelector('input[name="algorithm"]:checked').value;
         });
     });
+    document.onkeypress = function (e) {
+        e = e || window.event;
+        if(e.keyCode == 32){
+            e.preventDefault();
+            var play_button = document.getElementById('play_button');
+            play_button.click();
+        }
+    };
 }
 
 
