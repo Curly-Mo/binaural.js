@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
 
+    <link href="css/nouislider.min.css" rel="stylesheet">
     <link href="css/main.css" rel="stylesheet">
 
     <title>Binaural Happy Funtimes!</title>
@@ -13,10 +14,29 @@
         </div>
         <div id="settings_div">
             <button id="play_button" class="play_button" value="paused">&#9654;</button>
+            <div id="options">
+				<fieldset>
+					<legend>Algorithm</legend>
+				  	<label><input type="radio" name="algorithm" value="equalpower">Equal-Power Panning</label><br>
+				  	<label><input type="radio" name="algorithm" value="HRTF" checked="checked">HRTF</label><br>
+				</fieldset>
+				<fieldset>
+					<legend>Settings</legend>
+				  	<label>Max Distance:
+            <input type="number" name="max_distance" id="max_distance" value="5" min="1" max="999" step="1">meters
+                    </label><br>
+				  	<label>Enable Collisions
+                        <input type="checkbox" name="collisions" id="collisions">
+                    </label><br>
+
+				</fieldset>
+                <div style="float:right;margin-right:5px;">Elevation</div><br>
+            </div>
         </div>
     </div>
 
     <script src="js/matter.min.js"></script>
+    <script src="js/nouislider.min.js"></script>
     <script src="js/main.js"></script>
 </body>
 </html>

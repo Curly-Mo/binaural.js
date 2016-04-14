@@ -1,11 +1,12 @@
 document.addEventListener("DOMContentLoaded", function(event) { 
     init_physics();
-    init_head();
+    //init_head();
 	init_webaudio();
     init_settings();
 });
 
 var engine;
+var head;
 
 function init_physics(){
     // Matter.js module aliases
@@ -33,37 +34,36 @@ function init_physics(){
 	engine.render.options.wireframes = false;
     engine.render.options.background = '#222';
     engine.render.options.showSleeping = false;
-	console.log(engine);
 
 	var width = engine.render.element.clientWidth;
 	var height = engine.render.element.clientHeight;
 	engine.render.canvas.width = width;
 	engine.render.canvas.height = height;
-	var wall_width = 200;
-	var offset = 10;
+    // Make thick walls so balls can't clip through them
+	var wall_width = 800;
 	var walls = [
-    	Bodies.rectangle(width/2, height + wall_width/2, width*2, wall_width+offset, {
+    	Bodies.rectangle(width/2, height + wall_width/2, width*2, wall_width, {
 			isStatic: true,
         	friction: 0,
         	frictionStatic: 0,
 			frictionAir: 0,
         	restitution: 1,
 		}),
-		Bodies.rectangle(width/2, -wall_width/2, width*2, wall_width+offset, {
+		Bodies.rectangle(width/2, -wall_width/2, width*2, wall_width, {
 			isStatic: true,
         	friction: 0,
         	frictionStatic: 0,
 			frictionAir: 0,
         	restitution: 1,
 		}),
-    	Bodies.rectangle(-wall_width/2, height/2, wall_width+offset, height*2, {
+    	Bodies.rectangle(-wall_width/2, height/2, wall_width, height*2, {
 			isStatic: true,
         	friction: 0,
         	frictionStatic: 0,
 			frictionAir: 0,
         	restitution: 1,
 		}),
-    	Bodies.rectangle(width + wall_width/2, height/2, wall_width+offset, height*2, {
+    	Bodies.rectangle(width + wall_width/2, height/2, wall_width, height*2, {
 			isStatic: true,
         	friction: 0,
         	frictionStatic: 0,
@@ -85,7 +85,9 @@ function init_physics(){
         var closest;
         for(var key in sources){
             var ball = sources[key].ball;
-            if(!ball){continue;}
+            if(!ball || sources[key].source_button.style.opacity != 1){
+                continue;
+            }
             var d = distance(ball.position, mouseconstraint.mouse.position);
             if(d < min_distance){
                 closest = ball;
@@ -96,6 +98,21 @@ function init_physics(){
         Matter.Body.setVelocity(closest, {x: 0, y: 0});
     });
 	World.add(engine.world, mouseconstraint);
+
+
+    // add head
+    head = Bodies.circle(width/2, height/2, 5, {
+        render: {
+            sprite: {
+                texture: 'img/head_small.png',
+            }
+        },
+        collisionFilter: {
+            category: 3,
+            mask: 0,
+        },
+    });
+	World.add(engine.world, head);
 
     // run the engine
     Engine.run(engine);
@@ -109,11 +126,38 @@ function create_ball(id, hue){
         frictionStatic: 0,
         frictionAir: 0,
         restitution: 1,
+        collisionFilter: {
+            category: 2,
+            mask: 1,
+        },
     });
+    if(document.getElementById('collisions').checked){
+        ball.collisionFilter.mask = 3;
+    }
     ball.render.fillStyle = 'hsl(' + hue + ', 100%, 50%)';
     ball.render.strokeStyle = 'hsl(' + hue + ', 100%, 30%)';
     Matter.World.add(engine.world, ball);
+    setTimeout(function(){
+        set_ball_zindex();
+    }, 100);
     return ball;
+}
+
+function set_ball_zindex(){
+    var sortable = [];
+    for(var key in sources){
+        sortable.push([sources[key], sources[key].elevation])
+    }
+    sortable.push([{ball: head}, -0.001]);
+    sortable.sort(function(a, b) {return a[1] - b[1]})
+    for(var i = 0; i < sortable.length; i++){
+        var ball = sortable[i][0].ball;
+        if(ball === undefined){
+            continue;
+        }
+        Matter.Composite.remove(engine.world, ball);
+        Matter.Composite.add(engine.world, ball);
+    }
 }
 
 function init_head(){
@@ -134,6 +178,8 @@ var sources = {};
 var listener;
 var script_processor;
 var doppler = false;
+var max_distance = 5;
+var algorithm = 'HRTF';
 
 function to_polar(x, y){
     var polar = {};
@@ -144,15 +190,17 @@ function to_polar(x, y){
 	if(polar.angle < 0){
         polar.angle += 2*Math.PI;
     }
-    // scale distance from [0-0.5] to [0-10]
-    polar.radius = polar.radius * 20;
+    // scale distance from [0-0.5] to [0-max_distance]
+    polar.radius = polar.radius * 2 * max_distance;
     return polar;
 }
 
-function to_cartesian(angle, radius){
+function to_cartesian(azimuth, elevation, radius){
     var position = {}
-    position.x = radius * Math.sin(angle);
-    position.y = radius * Math.cos(angle);
+    elevation = Math.PI - elevation;
+    position.x = radius * Math.sin(azimuth) * Math.abs(Math.cos(elevation));
+    position.y = radius * Math.cos(azimuth) * Math.abs(Math.cos(elevation));
+    position.z = radius * Math.sin(elevation);
     return position;
 }
 
@@ -194,6 +242,12 @@ function load_buffer(buffer, id){
 	source.buffer = buffer;
 	source.loop = true;
 
+    var gain = sources[id].gain;
+    if(gain == null){
+        gain = audio_context.createGain();
+    }
+    sources[id].gain = gain;
+
     var panner = sources[id].panner;
     if(panner == null){
         panner = audio_context.createPanner();
@@ -201,7 +255,7 @@ function load_buffer(buffer, id){
     panner.panningModel = 'HRTF';
     panner.distanceModel = 'inverse';
     panner.refDistance = 1;
-    panner.maxDistance = 100;
+    panner.maxDistance = 999;
     panner.rolloffFactor = 1;
     panner.coneInnerAngle = 360;
     panner.coneOuterAngle = 0;
@@ -215,11 +269,12 @@ function load_buffer(buffer, id){
     listener.setPosition(0, 0, 0);
 
     if(script_processor === undefined){
-        script_processor = audio_context.createScriptProcessor(512, 1, 1);
+        script_processor = audio_context.createScriptProcessor(256, 1, 1);
         script_processor.onaudioprocess = process_audio;
     }
 
-	source.connect(panner);
+	source.connect(gain);
+	gain.connect(panner);
 	panner.connect(audio_context.destination);
 	panner.connect(script_processor);
 	script_processor.connect(audio_context.destination);
@@ -243,8 +298,8 @@ function process_audio(audioProcessingEvent) {
         var x = ball.position.x / width - 0.5;
         var y = ball.position.y / height - 0.5;
         var polar = to_polar(x, y);
-        var position = to_cartesian(polar.angle, polar.radius);
-        sources[key].panner.setPosition(position.x, position.y, 0);
+        var position = to_cartesian(polar.angle, sources[key].elevation, polar.radius);
+        sources[key].panner.setPosition(position.x, position.y, position.z);
         if(doppler){
             sources[key].panner.setVelocity(x, -y, 0);
         }
@@ -258,9 +313,12 @@ function init_settings(){
             this.textContent = String.fromCharCode(9646, 9646);
             if(audio_context.state === 'suspended') {
                 audio_context.resume();
-            }else{
-                for(var key in sources){
+            }
+            for(var key in sources){
+                try{
                     sources[key].audio_source.start(0);
+                }catch(e){
+                    console.log(e);
                 }
             }
         }else if(this.textContent == String.fromCharCode(9646, 9646)){
@@ -268,6 +326,26 @@ function init_settings(){
             audio_context.suspend();
         }
     };
+    document.getElementById('max_distance').addEventListener('change',  function(){
+        max_distance = this.value;
+    });
+    document.getElementById('collisions').addEventListener('change',  function(){
+        var mask = 1;
+        if(this.checked){
+            mask = 3;
+        }
+        for(var key in sources){
+            var source = sources[key];
+            if(source.ball){
+                source.ball.collisionFilter.mask = mask;
+            }
+        }
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('input[name="algorithm"]'), function(radio) {
+        radio.addEventListener('change', function(){
+            algorithm = document.querySelector('input[name="algorithm"]:checked').value;
+        });
+    });
 }
 
 
@@ -297,12 +375,13 @@ function create_source(buffer, id) {
     if(!sources[id].fileinput){
         add_input('default');
     }else if(document.getElementById(id).parentElement.nextElementSibling == null){
-        console.log(document.getElementById(id).parentElement.nextElementSibling);
         add_input();
     }
     if(!sources[id].ball){
         sources[id].ball = create_ball(id, sources[id].color);
     }
+    sources[id].source_button.style.opacity = 1;
+    sources[id].ball.render.visible = true;
 }
 
 
@@ -311,7 +390,9 @@ function add_input(id){
     var source_div = document.createElement('div');
     var file_input = document.createElement('input');
     var source_button = document.createElement('button');
+    var elevation_slider = document.createElement('div');
     file_input.type = 'file';
+    file_input.accept = 'audio/*';
     if(id === undefined){
         id = Date.now();
         sources[id] = {};
@@ -325,12 +406,46 @@ function add_input(id){
 	source_button.classList.add('source_button');
 	source_button.style.backgroundColor = 'hsl(' + sources[id].color + ', 100%, 50%)';
 	source_button.style.borderColor= 'hsl(' + sources[id].color + ', 100%, 30%)';
+    source_button.style.opacity = 0.3;
 	source_button.addEventListener('click', function(){
 		toggle_source(id);
 	});
 
+    elevation_slider.classList.add('elevation_slider');
+    elevation_slider.classList.add('noUi-extended');
+	noUiSlider.create(elevation_slider, {
+        start: 0,
+        step: 1,
+        animate: true,
+        orientation: "vertical",
+        direction: 'rtl',
+        tooltips: true,
+        range: {
+            'min': -90,
+            'max': 90,
+        },
+        format: {
+            to: function ( value ) {
+                return parseInt(value) + '&#x00B0;';
+	        },
+	        from: function ( value ) {
+		        return value.replace('&#x00B0;', '');
+	        }
+	    },
+    });
+    sources[id].elevation = 0; 
+    elevation_slider.noUiSlider.on('update', function(){
+        var degrees = parseInt(elevation_slider.noUiSlider.get().replace('&#x00B0;', ''));
+        sources[id].elevation = degrees * (Math.PI/180);
+
+        set_ball_zindex();
+    });
+
+    source_div.classList.add('source_div');
+
     source_div.appendChild(source_button);
     source_div.appendChild(file_input);
+    source_div.appendChild(elevation_slider);
     settings.appendChild(source_div);
 }
 
@@ -342,14 +457,18 @@ function toggle_source(id){
         return;
     }
     if(source.source_button.style.opacity == 0.3){
-        source.audio_source.connect(source.panner);
+        source.gain.gain.value = 1;
         source.ball.render.visible = true;
         source.source_button.style.opacity = 1;
+        if(document.getElementById('collisions').checked){
+            source.ball.collisionFilter.mask = 3;
+        }
     // turn off
     }else{
-        source.audio_source.disconnect();
+        source.gain.gain.value = 0;
         source.ball.render.visible = false;
         source.source_button.style.opacity = 0.3;
+        source.ball.collisionFilter.mask = 1;
     }
 }
 
@@ -360,14 +479,13 @@ function distance(pos1, pos2){
     return c
 }
 
-// initialize tierable array of N distinct hsl hues
+// initialize iterable array of N distinct hsl hues
 var distinct_colors = [];
 (function(){
-	var N = 12;
+	var N = 10;
 	for(var i =  0; i < 360; i += 360 / N){
 		distinct_colors.push(i);
 	}
-	console.log(distinct_colors);
 	distinct_colors.sort(function() {
 		return .5 - Math.random();
 	});
