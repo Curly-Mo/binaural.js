@@ -165,7 +165,7 @@ function init_webaudio(){
   	catch(e) {
     	alert('Web Audio API is not supported in this browser');
   	}
-	load_audio('audio/spokey_dokey.wav');
+	load_audio('audio/spokey_dokey.mp3');
 }
 
 function load_audio(url){
