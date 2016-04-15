@@ -41,35 +41,20 @@ function init_physics(){
 	engine.render.canvas.height = height;
     // Make thick walls so balls can't clip through them
 	var wall_width = 800;
+    var wall_options = {
+		isStatic: true,
+        friction: 0,
+        frictionStatic: 0,
+		frictionAir: 0,
+        restitution: 1,
+        slop: 0,
+        density: 999,
+    }
 	var walls = [
-    	Bodies.rectangle(width/2, height + wall_width/2, width*2, wall_width, {
-			isStatic: true,
-        	friction: 0,
-        	frictionStatic: 0,
-			frictionAir: 0,
-        	restitution: 1,
-		}),
-		Bodies.rectangle(width/2, -wall_width/2, width*2, wall_width, {
-			isStatic: true,
-        	friction: 0,
-        	frictionStatic: 0,
-			frictionAir: 0,
-        	restitution: 1,
-		}),
-    	Bodies.rectangle(-wall_width/2, height/2, wall_width, height*2, {
-			isStatic: true,
-        	friction: 0,
-        	frictionStatic: 0,
-			frictionAir: 0,
-        	restitution: 1,
-		}),
-    	Bodies.rectangle(width + wall_width/2, height/2, wall_width, height*2, {
-			isStatic: true,
-        	friction: 0,
-        	frictionStatic: 0,
-			frictionAir: 0,
-        	restitution: 1,
-		}),
+    	Bodies.rectangle(width/2, height + wall_width/2, width*2, wall_width, wall_options),
+		Bodies.rectangle(width/2, -wall_width/2, width*2, wall_width, wall_options),
+    	Bodies.rectangle(-wall_width/2, height/2, wall_width, height*2, wall_options),
+    	Bodies.rectangle(width + wall_width/2, height/2, wall_width, height*2, wall_options),
 	];
 	World.add(engine.world, walls);
 
@@ -126,6 +111,8 @@ function create_ball(id, hue){
         frictionStatic: 0,
         frictionAir: 0,
         restitution: 1,
+        slop: 0,
+        density: 999,
         collisionFilter: {
             category: 2,
             mask: 1,
@@ -252,7 +239,7 @@ function load_buffer(buffer, id){
     if(panner == null){
         panner = audio_context.createPanner();
     }
-    panner.panningModel = 'HRTF';
+    panner.panningModel = algorithm;
     panner.distanceModel = 'inverse';
     panner.refDistance = 1;
     panner.maxDistance = 999;
@@ -344,6 +331,10 @@ function init_settings(){
     Array.prototype.forEach.call(document.querySelectorAll('input[name="algorithm"]'), function(radio) {
         radio.addEventListener('change', function(){
             algorithm = document.querySelector('input[name="algorithm"]:checked').value;
+            for(var key in sources){
+                var panner = sources[key].panner;
+                panner.panningModel = algorithm;
+            }
         });
     });
     document.onkeypress = function (e) {
