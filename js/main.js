@@ -229,6 +229,7 @@ function load_buffer(buffer, id){
 	source.buffer = buffer;
 	source.loop = true;
 
+
     var gain = sources[id].gain;
     if(gain == null){
         gain = audio_context.createGain();
@@ -260,7 +261,13 @@ function load_buffer(buffer, id){
         script_processor.onaudioprocess = process_audio;
     }
 
-	source.connect(gain);
+    var splitter = audio_context.createChannelSplitter(2);
+    var merger = audio_context.createChannelMerger(1);
+    source.connect(splitter);
+    splitter.connect(merger, 0, 0);
+    splitter.connect(merger, 1, 0);
+    merger.connect(gain);
+
 	gain.connect(panner);
 	panner.connect(audio_context.destination);
 	panner.connect(script_processor);
@@ -332,8 +339,12 @@ function init_settings(){
         radio.addEventListener('change', function(){
             algorithm = document.querySelector('input[name="algorithm"]:checked').value;
             for(var key in sources){
-                var panner = sources[key].panner;
-                panner.panningModel = algorithm;
+                try{
+                    var panner = sources[key].panner;
+                    panner.panningModel = algorithm;
+                }catch(e){
+                    console.log(e);
+                }
             }
         });
     });
