@@ -11,16 +11,20 @@ html, body, #container {
 }
 
 #content_div {
-    width: calc(100% - 300px);
+    width: calc(100% - 310px);
     height: 100%;
     float: left;
 }
 
 #settings_div {
-    width: 300px;
+    width: 310px;
     height: 100%;
     float: left;
     text-align: center;
+}
+
+#options {
+    margin-left: 12px;
 }
 
 .play_button {
@@ -76,8 +80,13 @@ fieldset{
     vertical-align: middle;
 	margin-left: 50px;
 }
-.noUi-vertical .noUi-handle {
-}
 .noUi-tooltip {
 	color: #000;
+}
+
+.output {
+	border: none;
+	background-color: transparent;
+	color: #FFF;
+	width: 60px;
 }

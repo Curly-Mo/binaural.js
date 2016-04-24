@@ -8,6 +8,16 @@ document.addEventListener("DOMContentLoaded", function(event) {
 var engine;
 var head;
 
+var audio_context;
+var output;
+var sources = {};
+var listener;
+var script_processor;
+var doppler = false;
+var max_distance = 5;
+var algorithm = 'HRTF';
+var xtc;
+
 function init_physics(){
     // Matter.js module aliases
     var Engine = Matter.Engine,
@@ -160,14 +170,6 @@ function init_head(){
     };
 }
 
-var audio_context;
-var sources = {};
-var listener;
-var script_processor;
-var doppler = false;
-var max_distance = 5;
-var algorithm = 'HRTF';
-
 function to_polar(x, y){
     var polar = {};
     polar.radius = Math.sqrt(Math.pow(x, 2) + Math.pow(y, 2));
@@ -196,6 +198,12 @@ function init_webaudio(){
     	// Fix up for prefixing
     	window.AudioContext = window.AudioContext||window.webkitAudioContext;
     	audio_context = new AudioContext();
+        output = audio_context.createGain();
+        script_processor = audio_context.createScriptProcessor(256, 1, 1);
+        script_processor.onaudioprocess = process_audio;
+        output.connect(audio_context.destination);
+        output.connect(script_processor);
+        script_processor.connect(audio_context.destination);
   	}
   	catch(e) {
     	alert('Web Audio API is not supported in this browser');
@@ -256,11 +264,6 @@ function load_buffer(buffer, id){
     listener.setOrientation(0, 1, 1, 0, -1, 0);
     listener.setPosition(0, 0, 0);
 
-    if(script_processor === undefined){
-        script_processor = audio_context.createScriptProcessor(256, 1, 1);
-        script_processor.onaudioprocess = process_audio;
-    }
-
     var splitter = audio_context.createChannelSplitter(2);
     var merger = audio_context.createChannelMerger(1);
     source.connect(splitter);
@@ -269,9 +272,7 @@ function load_buffer(buffer, id){
     merger.connect(gain);
 
 	gain.connect(panner);
-	panner.connect(audio_context.destination);
-	panner.connect(script_processor);
-	script_processor.connect(audio_context.destination);
+	panner.connect(output);
 
     var play_button = document.getElementById('play_button');
     if(play_button.textContent == String.fromCharCode(9646, 9646)){
@@ -294,9 +295,10 @@ function process_audio(audioProcessingEvent) {
         var polar = to_polar(x, y);
         var position = to_cartesian(polar.angle, sources[key].elevation, polar.radius);
         sources[key].panner.setPosition(position.x, position.y, position.z);
-        if(doppler){
-            sources[key].panner.setVelocity(x, -y, 0);
-        }
+        // this is deprecated in web audio API
+        //if(doppler){
+        //    sources[key].panner.setVelocity(ball.velocity.x, -ball.velocity.y, 0);
+        //}
     }
 }
 
@@ -348,6 +350,40 @@ function init_settings(){
             }
         });
     });
+    Array.prototype.forEach.call(document.querySelectorAll('input[name="playback"]'), function(radio) {
+        radio.addEventListener('change', function(){
+            var value = document.querySelector('input[name="playback"]:checked').value;
+            if(value == 'speakers'){
+                document.getElementById('crosstalk_settings').style.display = 'block';
+                if(xtc === undefined){
+                    xtc = new CrosstalkCancel(audio_context);
+                }
+                xtc.connect(output, audio_context.destination);
+            }else{
+                document.getElementById('crosstalk_settings').style.display = 'none';
+                try{
+                    xtc.disconnect();
+                }catch(e) {
+                    console.log(e);
+                }
+                output.disconnect();
+                output.connect(audio_context.destination);
+                output.connect(script_processor);
+            }
+        });
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.slider'), function(slider) {
+        slider.oninput = function(e){
+            this.nextElementSibling.value  = this.value;
+            xtc[this.name] = parseFloat(this.value);
+        };
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.output'), function(output) {
+        output.oninput = function(e){
+            this.previousElementSibling.value = this.value;
+            xtc[this.previousElementSibling.name] = parseFloat(this.value);
+        };
+    });
     document.onkeypress = function (e) {
         e = e || window.event;
         if(e.keyCode == 32){
@@ -363,17 +399,24 @@ function handleFileSelect(e) {
     var input = this;
     var id = this.id
     var files = e.target.files; // FileList object
-    var file = files[0];
-    var reader = new FileReader();
-    // Closure to capture the file information.
-    reader.onload = (function(theFile) {
-        return function(e) {
-            audio_context.decodeAudioData(e.target.result, function(buffer){
-                create_source(buffer, id);
-            });
-        };
-    })(file);
-    reader.readAsArrayBuffer(file);
+    for(var f=0;f<files.length;f++){
+        var file = files[f];
+        if(f > 0){
+            var input = add_input();
+            input = input.getElementsByTagName('input')[0];
+            id = input.id;
+        }
+        var reader = new FileReader();
+        // Closure to capture the file information.
+        reader.onload = (function(theFile, id) {
+            return function(e) {
+                audio_context.decodeAudioData(e.target.result, function(buffer){
+                    create_source(buffer, id);
+                });
+            };
+        })(file, id);
+        reader.readAsArrayBuffer(file);
+    }
 }
 
 function create_source(buffer, id) {
@@ -403,6 +446,8 @@ function add_input(id){
     var elevation_slider = document.createElement('div');
     file_input.type = 'file';
     file_input.accept = 'audio/*';
+    file_input.multiple = "multiple";
+
     if(id === undefined){
         id = Date.now();
         sources[id] = {};
@@ -457,6 +502,7 @@ function add_input(id){
     source_div.appendChild(file_input);
     source_div.appendChild(elevation_slider);
     settings.appendChild(source_div);
+    return source_div;
 }
 
 
