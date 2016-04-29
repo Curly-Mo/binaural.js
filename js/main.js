@@ -13,7 +13,7 @@ var output;
 var sources = {};
 var listener;
 var script_processor;
-var doppler = false;
+//var doppler = false;
 var max_distance = 5;
 var algorithm = 'HRTF';
 var xtc;
@@ -293,12 +293,17 @@ function process_audio(audioProcessingEvent) {
         var x = ball.position.x / width - 0.5;
         var y = ball.position.y / height - 0.5;
         var polar = to_polar(x, y);
-        var position = to_cartesian(polar.angle, sources[key].elevation, polar.radius);
-        sources[key].panner.setPosition(position.x, position.y, position.z);
-        // this is deprecated in web audio API
-        //if(doppler){
-        //    sources[key].panner.setVelocity(ball.velocity.x, -ball.velocity.y, 0);
-        //}
+        if(algorithm == 'model'){
+            sources[key].physical_model.azimuth_angle = polar.angle;
+            sources[key].physical_model.distance = polar.radius;
+        }else{
+            var position = to_cartesian(polar.angle, sources[key].elevation, polar.radius);
+            sources[key].panner.setPosition(position.x, position.y, position.z);
+            // this is deprecated in web audio API
+            //if(doppler){
+            //    sources[key].panner.setVelocity(ball.velocity.x, -ball.velocity.y, 0);
+            //}
+        }
     }
 }
 
@@ -340,12 +345,35 @@ function init_settings(){
     Array.prototype.forEach.call(document.querySelectorAll('input[name="algorithm"]'), function(radio) {
         radio.addEventListener('change', function(){
             algorithm = document.querySelector('input[name="algorithm"]:checked').value;
-            for(var key in sources){
-                try{
-                    var panner = sources[key].panner;
-                    panner.panningModel = algorithm;
-                }catch(e){
-                    console.log(e);
+            if(algorithm=='model'){
+                document.getElementById('model_settings').style.display = 'block';
+                for(var key in sources){
+                        var gain = sources[key].gain;
+                        var panner = sources[key].panner;
+                        gain.disconnect();
+                        var model = sources[key].physical_model;
+                        if(model == null){
+                            model = new BinauralModel(audio_context);
+                            sources[key].physical_model = model;
+                        }
+                        model.connect(gain, output);
+                }
+            }else{
+                document.getElementById('model_settings').style.display = 'none';
+                for(var key in sources){
+                    try{
+                        var gain = sources[key].gain;
+                        var panner = sources[key].panner;
+                        panner.panningModel = algorithm;
+                        gain.disconnect();
+                        gain.connect(panner);
+                        var model = sources[key].physical_model;
+                        if(model != null){
+                            model.disconnect();
+                        }
+                    }catch(e){
+                        console.log(e);
+                    }
                 }
             }
         });
@@ -375,6 +403,7 @@ function init_settings(){
     Array.prototype.forEach.call(document.querySelectorAll('.slider'), function(slider) {
         slider.oninput = function(e){
             this.nextElementSibling.value  = this.value;
+            console.log(this.parentElement);
             xtc[this.name] = parseFloat(this.value);
         };
     });
@@ -382,6 +411,15 @@ function init_settings(){
         output.oninput = function(e){
             this.previousElementSibling.value = this.value;
             xtc[this.previousElementSibling.name] = parseFloat(this.value);
+        };
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.slider_model'), function(slider) {
+        slider.oninput = function(e){
+            this.nextElementSibling.value  = this.value;
+            for(var key in sources){
+                var source = sources[key];
+                source.physical_model[this.name] = parseFloat(this.value);
+            }
         };
     });
     document.onkeypress = function (e) {

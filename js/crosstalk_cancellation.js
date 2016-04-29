@@ -15,7 +15,6 @@ var CrosstalkCancel = function(audio_context, spkr2spkr, lstnr2spkr, head_radius
 		this.d2 = this.d1 + this.delta_d;
 		this.attenuation = this.d1 / this.d2;
 		this.delay_time = this.delta_d / this.c;
-		console.log('updated distances');
 	}
 	this.update_distances();
 
@@ -40,8 +39,9 @@ var CrosstalkCancel = function(audio_context, spkr2spkr, lstnr2spkr, head_radius
             var inverter = this.context.createGain();
             inverter.gain.value = -1 * this.attenuation;
             var head_shadow = this.context.createBiquadFilter();
+
             head_shadow.type = 'highshelf';
-            head_shadow.frequency = 2000;
+            head_shadow.frequency.value = 1500;
             head_shadow.gain.value = -2.5;
 
             delay.connect(head_shadow);

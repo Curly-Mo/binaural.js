@@ -17,8 +17,15 @@
             <div id="options">
 				<fieldset>
 					<legend>Algorithm</legend>
-				  	<label><input type="radio" name="algorithm" value="equalpower">Equal-Power Panning</label><br>
+				  	<label><input type="radio" name="algorithm" value="equalpower" autocomplete="off">Equal-Power Panning</label><br>
 				  	<label><input type="radio" name="algorithm" value="HRTF" checked="checked">HRTF</label><br>
+				  	<label><input type="radio" name="algorithm" value="model" autocomplete="off">Physical model</label><br>
+                    <div id="model_settings" style="display:none;">
+                        <label>Head diameter: 
+                            <input type="range" name="head_diameter" value="0.215" min="0.001" max="1" step="0.001" class="slider_model">
+                            <input type="number" value="0.215" min="0.001" max="1" step="0.001" class="output"/> meters
+                        </label>
+                    </div>
 				</fieldset>
 				<fieldset>
 					<legend>Settings</legend>
@@ -57,6 +64,7 @@
     <script src="js/matter.min.js"></script>
     <script src="js/nouislider.min.js"></script>
     <script src="js/crosstalk_cancellation.js"></script>
+    <script src="js/binaural_model.js"></script>
     <script src="js/main.js"></script>
 </body>
 </html>
