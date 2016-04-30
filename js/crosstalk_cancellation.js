@@ -4,7 +4,8 @@ var CrosstalkCancel = function(audio_context, spkr2spkr, lstnr2spkr, head_radius
     this.L = (typeof lstnr2spkr === 'undefined') ? 0.5588 : lstnr2spkr;
     this.r = (typeof head_radius === 'undefined') ? 0.1075 : head_radius;
     this.c = 343.2;
-    this.input = this.context.createChannelSplitter(2);
+    this.input_left = this.context.createGain();
+    this.input_right = this.context.createGain();
     this.output = this.context.createChannelMerger(2);
 
 	this.update_distances = function(){
@@ -26,6 +27,8 @@ var CrosstalkCancel = function(audio_context, spkr2spkr, lstnr2spkr, head_radius
 				var cancel = channel[i];
 				cancel.delay.delayTime.value = this.delay_time;
 				cancel.inverter.gain.value = -1 * this.attenuation;
+                cancel.head_shadow.gain.value = -5*this.delta_d;
+                cancel.head_shadow2.gain.value = -10*this.delta_d;
 			} 
 		}
     };
@@ -33,19 +36,23 @@ var CrosstalkCancel = function(audio_context, spkr2spkr, lstnr2spkr, head_radius
     this.create_cancellers = function(input, output, channel){
         // channel parameter either -1, or 1 representing left or right channel
         var cancels = [];
-        for (var i = 0; i < 30; i++){
+        for (var i = 0; i < 15; i++){
             var delay = this.context.createDelay(10);
             delay.delayTime.value = this.delay_time;
             var inverter = this.context.createGain();
             inverter.gain.value = -1 * this.attenuation;
             var head_shadow = this.context.createBiquadFilter();
-
             head_shadow.type = 'highshelf';
-            head_shadow.frequency.value = 1500;
-            head_shadow.gain.value = -2.5;
+            head_shadow.frequency.value = 500;
+            head_shadow.gain.value = -5 * this.delta_d;
+            var head_shadow2 = this.context.createBiquadFilter();
+            head_shadow2.type = 'highshelf';
+            head_shadow2.frequency.value = 2000;
+            head_shadow2.gain.value = -10 * this.delta_d;
 
             delay.connect(head_shadow);
-            head_shadow.connect(inverter);
+            head_shadow.connect(head_shadow2);
+            head_shadow2.connect(inverter);
             if (channel == -1){
                 input.connect(delay);
                 inverter.connect(output, 0, 1);
@@ -59,6 +66,7 @@ var CrosstalkCancel = function(audio_context, spkr2spkr, lstnr2spkr, head_radius
                 delay: delay,
                 inverter: inverter,
                 head_shadow: head_shadow,
+                head_shadow2: head_shadow2,
             }
             cancels.push(cancel);
         }
@@ -92,11 +100,12 @@ var CrosstalkCancel = function(audio_context, spkr2spkr, lstnr2spkr, head_radius
         }
         return panners;
     }
-    this.left_channel_cancels = this.create_cancellers(this.input, this.output, -1);
-    this.right_channel_cancels = this.create_cancellers(this.input, this.output, 1);
+    this.left_channel_cancels = this.create_cancellers(this.input_left, this.output, -1);
+    this.right_channel_cancels = this.create_cancellers(this.input_right, this.output, 1);
 
     this.connect = function(source, destination){
-        source.connect(this.input);
+        source.connect(this.input_left);
+        source.connect(this.input_right);
         this.output.connect(destination);
     };
 

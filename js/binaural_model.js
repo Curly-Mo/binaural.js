@@ -7,18 +7,24 @@ var BinauralModel = function(audio_context, head_radius, azimuth, elevation, dis
     this.c = 343.2;
     this.ref_distance = 1;
     this.input = this.context.createGain();
+    this.input.gain.value = 0.2;
     this.output = this.context.createChannelMerger(2);
 
 	this.update_distances = function(){
         var d = this.d;
         var r = this.radius;
-        var theta = this.azimuth % Math.PI;
-        var d1 = Math.sqrt(Math.pow(d,2) + Math.pow(r,2) - 2*d*r*Math.sin(Math.abs(theta)));
+        var theta = Math.abs(this.azimuth % Math.PI);
+        var phi = Math.abs(this.elevation);
+        var d1 = Math.sqrt(Math.pow(d,2) + Math.pow(r,2) - 2*d*r*Math.sin(theta));
         var inc_angle = Math.acos((Math.pow(d,2) + Math.pow(r,2) - Math.pow(d1,2)) / (2*d*r));
         var tangent = Math.sqrt(Math.pow(d,2) - Math.pow(r,2));
-        var d2 = tangent + r * (Math.PI - inc_angle - Math.acos(r / d));
+        var arc = r * (Math.PI - Math.max(inc_angle, phi)  - Math.acos(r / d));
+        var d2 = tangent + arc;
         if(tangent < d1){
             d1 = tangent + r*(inc_angle - Math.acos(r / d));
+        }
+        if(phi > inc_angle){
+            d1 = tangent + r*(phi - Math.acos(r / d));
         }
         var delta_d = Math.abs(d2 - d1);
         if(-Math.PI < this.azimuth && this.azimuth < 0 || Math.PI < this.azimuth && this.azimuth < 2*Math.PI){
@@ -70,7 +76,36 @@ var BinauralModel = function(audio_context, head_radius, azimuth, elevation, dis
         //    data[i] = b_right[i];
         //}
         //right.head_shadow.buffer = buffer;
+        this.update_prtf();
     };
+
+    this.update_prtf = function(){
+        var res1 = this.prtf.res1;
+        var res2 = this.prtf.res2;
+        var notch1 = this.prtf.notch1;
+        var notch2 = this.prtf.notch2;
+        var notch3 = this.prtf.notch3;
+        var front_back= this.prtf.front_back;
+        var elevation = this.elevation * 360 / (2 * Math.PI);
+        res1.frequency.value = rescale(elevation, -90, 90, 1000, 4500);
+        res2.frequency.value = rescale(elevation, -90, 90, 11000, 10000);
+        notch1.frequency.value = rescale(elevation, -90, 90, 6000, 10000);
+        notch1.gain.value = rescale(elevation, -90, 90, -15, -2);
+        notch2.frequency.value = rescale(elevation, -90, 90, 10000, 9000);
+        notch2.gain.value = rescale(elevation, -90, 90, -25, -2);
+        notch3.frequency.value = rescale(elevation, -90, 90, 10000, 14000);
+        notch3.gain.value = rescale(elevation, -90, 90, -15, -2);
+        var azimuth= Math.abs(this.azimuth * 360 / (2 * Math.PI));
+        if(azimuth > 180) {
+            azimuth = 360 - azimuth;
+        }
+        if(azimuth > 90){
+            if(azimuth > 155){azimuth=155;}
+            front_back.frequency.value = rescale(azimuth, 90, 155, this.context.sampleRate/2, 2400);;
+        }else{
+            front_back.frequency.value = this.context.sampleRate;
+        }
+    }
 
     this.create_nodes = function(input, output, channel){
         var delay = this.context.createDelay(10);
@@ -108,8 +143,50 @@ var BinauralModel = function(audio_context, head_radius, azimuth, elevation, dis
         return nodes;
     }
 
-    this.left_nodes = this.create_nodes(this.input, this.output, 0);
-    this.right_nodes = this.create_nodes(this.input, this.output, 1);
+    this.create_prtf = function(){
+        var res1 = this.context.createBiquadFilter();
+        res1.type = 'peaking';
+        res1.Q.value = 0.8;
+        res1.gain.value = 10;
+        var res2 = this.context.createBiquadFilter();
+        res2.type = 'peaking';
+        res2.Q.value = 0.8;
+        res2.gain.value = 9;
+        var notch1 = this.context.createBiquadFilter();
+        notch1.type = 'peaking';
+        notch1.Q.value = 15;
+        var notch2 = this.context.createBiquadFilter();
+        notch2.type = 'peaking';
+        notch2.Q.value = 15;
+        var notch3 = this.context.createBiquadFilter();
+        notch3.type = 'peaking';
+        notch3.Q.value = 15;
+        var front_back= this.context.createBiquadFilter();
+        front_back.type = 'lowpass';
+        front_back.Q.value = 0;
+
+        res1.connect(res2);
+        res2.connect(notch1);
+        notch1.connect(notch2);
+        notch2.connect(notch3);
+        notch3.connect(front_back);
+        prtf = {
+            input: res1,
+            output: front_back,
+            res1: res1,
+            res2: res2,
+            notch1: notch1,
+            notch2: notch2,
+            notch3: notch3,
+            front_back: front_back,
+        }
+        return prtf;
+    };
+
+    this.prtf = this.create_prtf();
+    this.left_nodes = this.create_nodes(this.prtf.output, this.output, 0);
+    this.right_nodes = this.create_nodes(this.prtf.output, this.output, 1);
+    this.input.connect(this.prtf.input);
 
     this.connect = function(source, destination){
         source.connect(this.input);
@@ -127,6 +204,13 @@ var BinauralModel = function(audio_context, head_radius, azimuth, elevation, dis
     }
 	this.update_distances();
     this.update_nodes();
+
+    this.set_angles = function(azimuth, elevation){
+        this.azimuth = azimuth;
+        this.elevation = elevation;
+        this.update_distances();
+        this.update_nodes();
+    };
 }
 
 BinauralModel.prototype = {
@@ -154,3 +238,11 @@ BinauralModel.prototype = {
 		this.update_nodes();
     },
 };
+
+function rescale(value, oldmin, oldmax, newmin, newmax){
+    oldrange = (oldmax - oldmin);
+    newrange = (newmax - newmin);
+    return (((value - oldmin) * newrange) / oldrange) + newmin
+
+
+}

@@ -1,6 +1,5 @@
 document.addEventListener("DOMContentLoaded", function(event) { 
     init_physics();
-    //init_head();
 	init_webaudio();
     init_settings();
 });
@@ -157,18 +156,6 @@ function set_ball_zindex(){
     }
 }
 
-function init_head(){
-    var head = new Image();
-    head.src = 'img/head.png';
-    document.body.appendChild(head);
-    head.onload = function(){
-        head.style.position = 'absolute';
-		head.style.width = '80px';
-        head.style.left = (engine.render.canvas.offsetWidth / 2 - head.width/2) + 'px';
-        head.style.top = (engine.render.canvas.offsetHeight / 2 - head.height/2) + 'px';
-        head.style.pointerEvents = 'none';
-    };
-}
 
 function to_polar(x, y){
     var polar = {};
@@ -294,7 +281,7 @@ function process_audio(audioProcessingEvent) {
         var y = ball.position.y / height - 0.5;
         var polar = to_polar(x, y);
         if(algorithm == 'model'){
-            sources[key].physical_model.azimuth_angle = polar.angle;
+            sources[key].physical_model.set_angles(polar.angle, sources[key].elevation);
             sources[key].physical_model.distance = polar.radius;
         }else{
             var position = to_cartesian(polar.angle, sources[key].elevation, polar.radius);
@@ -410,7 +397,7 @@ function init_settings(){
     Array.prototype.forEach.call(document.querySelectorAll('.output'), function(output) {
         output.oninput = function(e){
             this.previousElementSibling.value = this.value;
-            xtc[this.previousElementSibling.name] = parseFloat(this.value);
+            this.previousElementSibling.oninput();
         };
     });
     Array.prototype.forEach.call(document.querySelectorAll('.slider_model'), function(slider) {
