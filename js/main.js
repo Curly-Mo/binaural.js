@@ -258,7 +258,13 @@ function load_buffer(buffer, id){
     splitter.connect(merger, 1, 0);
     merger.connect(gain);
 
-	gain.connect(panner);
+    if(algorithm == 'model'){
+        var model = new BinauralModel(audio_context);
+        sources[id].physical_model = model;
+        model.connect(gain, output);
+    }else{
+	    gain.connect(panner);
+    }
 	panner.connect(output);
 
     var play_button = document.getElementById('play_button');
@@ -272,8 +278,8 @@ function process_audio(audioProcessingEvent) {
     if(audio_context.state !== 'running'){
         return;
     }
-    var width = engine.render.element.clientWidth;
-    var height = engine.render.element.clientHeight;
+    var width = engine.render.canvas.clientWidth;
+    var height = engine.render.canvas.clientHeight;
     for(var key in sources){
         var ball = sources[key].ball;
         if(!ball){continue;}
@@ -336,6 +342,9 @@ function init_settings(){
                 document.getElementById('model_settings').style.display = 'block';
                 for(var key in sources){
                         var gain = sources[key].gain;
+                        if(gain == null){
+                            continue;
+                        }
                         var panner = sources[key].panner;
                         gain.disconnect();
                         var model = sources[key].physical_model;
@@ -350,6 +359,9 @@ function init_settings(){
                 for(var key in sources){
                     try{
                         var gain = sources[key].gain;
+                        if(gain == null){
+                            continue;
+                        }
                         var panner = sources[key].panner;
                         panner.panningModel = algorithm;
                         gain.disconnect();

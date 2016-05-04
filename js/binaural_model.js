@@ -7,7 +7,7 @@ var BinauralModel = function(audio_context, head_radius, azimuth, elevation, dis
     this.c = 343.2;
     this.ref_distance = 1;
     this.input = this.context.createGain();
-    this.input.gain.value = 0.2;
+    this.input.gain.value = 0.3;
     this.output = this.context.createChannelMerger(2);
 
 	this.update_distances = function(){
@@ -15,16 +15,13 @@ var BinauralModel = function(audio_context, head_radius, azimuth, elevation, dis
         var r = this.radius;
         var theta = Math.abs(this.azimuth % Math.PI);
         var phi = Math.abs(this.elevation);
-        var d1 = Math.sqrt(Math.pow(d,2) + Math.pow(r,2) - 2*d*r*Math.sin(theta));
-        var inc_angle = Math.acos((Math.pow(d,2) + Math.pow(r,2) - Math.pow(d1,2)) / (2*d*r));
+        var inc_angle = Math.acos(Math.cos(Math.abs(Math.PI/2 - theta)) * Math.cos(phi))
+        var d1 = Math.sqrt(Math.pow(d,2) + Math.pow(r,2) - 2*d*r*Math.cos(inc_angle));
         var tangent = Math.sqrt(Math.pow(d,2) - Math.pow(r,2));
-        var arc = r * (Math.PI - Math.max(inc_angle, phi)  - Math.acos(r / d));
+        var arc = r * (Math.PI - inc_angle  - Math.acos(r / d));
         var d2 = tangent + arc;
         if(tangent < d1){
             d1 = tangent + r*(inc_angle - Math.acos(r / d));
-        }
-        if(phi > inc_angle){
-            d1 = tangent + r*(phi - Math.acos(r / d));
         }
         var delta_d = Math.abs(d2 - d1);
         if(-Math.PI < this.azimuth && this.azimuth < 0 || Math.PI < this.azimuth && this.azimuth < 2*Math.PI){
