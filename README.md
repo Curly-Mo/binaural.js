@@ -1,2 +1,2 @@
 # binaural.js
-Binaural Audio playground using HRTF
+Binaural Audio playground using the Web Audio API
