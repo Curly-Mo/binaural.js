@@ -7,7 +7,7 @@ var BinauralModel = function(audio_context, head_radius, azimuth, elevation, dis
     this.c = 343.2;
     this.ref_distance = 1;
     this.input = this.context.createGain();
-    this.input.gain.value = 0.3;
+    this.input.gain.value = 0.4;
     this.output = this.context.createChannelMerger(2);
 
 	this.update_distances = function(){
@@ -85,20 +85,30 @@ var BinauralModel = function(audio_context, head_radius, azimuth, elevation, dis
         var front_back= this.prtf.front_back;
         var elevation = this.elevation * 360 / (2 * Math.PI);
         res1.frequency.value = rescale(elevation, -90, 90, 1000, 4500);
-        res2.frequency.value = rescale(elevation, -90, 90, 11000, 10000);
+        if (elevation <= 0){
+            res1.gain.value = rescale(elevation, -90, 0, 8, 1);
+        }else{
+            res1.gain.value = rescale(elevation, 0, 90, 1, 5);
+        }
+        if (elevation <= 0){
+            res2.gain.value = rescale(elevation, -90, 0, 8, 1);
+        }else{
+            res2.gain.value = rescale(elevation, 0, 90, 1, 5);
+        }
+        res2.gain.value = rescale(elevation, -90, 90, 10, 2);
         notch1.frequency.value = rescale(elevation, -90, 90, 6000, 10000);
-        notch1.gain.value = rescale(elevation, -90, 90, -15, -2);
+        notch1.gain.value = rescale(elevation, -90, 90, -12, -2);
         notch2.frequency.value = rescale(elevation, -90, 90, 10000, 9000);
-        notch2.gain.value = rescale(elevation, -90, 90, -25, -2);
+        notch2.gain.value = rescale(elevation, -90, 90, -20, -2);
         notch3.frequency.value = rescale(elevation, -90, 90, 10000, 14000);
-        notch3.gain.value = rescale(elevation, -90, 90, -15, -2);
+        notch3.gain.value = rescale(elevation, -90, 90, -13, -2);
         var azimuth= Math.abs(this.azimuth * 360 / (2 * Math.PI));
         if(azimuth > 180) {
             azimuth = 360 - azimuth;
         }
         if(azimuth > 90){
             if(azimuth > 155){azimuth=155;}
-            front_back.frequency.value = rescale(azimuth, 90, 155, this.context.sampleRate/2, 2400);;
+            front_back.frequency.value = rescale(azimuth, 90, 155, this.context.sampleRate/2, 2800);;
         }else{
             front_back.frequency.value = this.context.sampleRate;
         }
@@ -143,12 +153,12 @@ var BinauralModel = function(audio_context, head_radius, azimuth, elevation, dis
     this.create_prtf = function(){
         var res1 = this.context.createBiquadFilter();
         res1.type = 'peaking';
-        res1.Q.value = 0.8;
-        res1.gain.value = 10;
+        res1.Q.value = 2;
+        res1.gain.value = 3;
         var res2 = this.context.createBiquadFilter();
         res2.type = 'peaking';
-        res2.Q.value = 0.8;
-        res2.gain.value = 9;
+        res2.Q.value = 2;
+        res2.gain.value = 3;
         var notch1 = this.context.createBiquadFilter();
         notch1.type = 'peaking';
         notch1.Q.value = 15;
